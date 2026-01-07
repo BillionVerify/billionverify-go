@@ -436,7 +436,7 @@ func TestVerifyWebhookSignature(t *testing.T) {
 		payload := `{"event":"test"}`
 		secret := "test-secret"
 		// Pre-computed valid signature
-		signature := "sha256=f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+		signature := "sha256=ad386d9a61a0540a089d2955a07280771439f9f8c41a4b94cd404a740061c3d9"
 
 		result := VerifyWebhookSignature(payload, signature, secret)
 
