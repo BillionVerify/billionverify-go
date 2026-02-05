@@ -52,35 +52,82 @@ func TestNewClient(t *testing.T) {
 	})
 }
 
+func TestHealth(t *testing.T) {
+	t.Run("checks health successfully", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/health" {
+				t.Errorf("expected path /health, got %s", r.URL.Path)
+			}
+			if r.Method != http.MethodGet {
+				t.Errorf("expected GET method, got %s", r.Method)
+			}
+			// Health endpoint should not require API key
+			if r.Header.Get("EV-API-KEY") != "" {
+				t.Error("health endpoint should not send API key")
+			}
+
+			response := HealthResponse{
+				Status: "ok",
+				Time:   1705319400,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+		}))
+		defer server.Close()
+
+		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
+		result, err := client.Health(context.Background())
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != "ok" {
+			t.Errorf("expected status ok, got %s", result.Status)
+		}
+	})
+}
+
 func TestVerify(t *testing.T) {
 	t.Run("verifies email successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/verify" {
-				t.Errorf("expected path /verify, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/verify/single" {
+				t.Errorf("expected path /v1/verify/single, got %s", r.URL.Path)
 			}
 			if r.Method != http.MethodPost {
 				t.Errorf("expected POST method, got %s", r.Method)
 			}
-			if r.Header.Get("EMAILVERIFY-API-KEY") != "test-key" {
-				t.Errorf("expected EMAILVERIFY-API-KEY header")
+			if r.Header.Get("EV-API-KEY") != "test-key" {
+				t.Errorf("expected EV-API-KEY header")
 			}
 
-			response := VerifyResponse{
-				Email:  "test@example.com",
-				Status: StatusValid,
-				Result: VerificationResult{
-					Deliverable: true,
-					ValidFormat: true,
-					ValidDomain: true,
-					ValidMX:     true,
-					Disposable:  false,
-					Role:        false,
-					Catchall:    false,
-					Free:        false,
-					SMTPValid:   true,
+			// Verify request body uses check_smtp not smtp_check
+			var reqBody map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&reqBody)
+			if _, ok := reqBody["check_smtp"]; !ok {
+				t.Error("expected check_smtp in request body")
+			}
+
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"email":          "test@example.com",
+					"status":         "valid",
+					"score":          0.95,
+					"is_deliverable": true,
+					"is_disposable":  false,
+					"is_catchall":    false,
+					"is_role":        false,
+					"is_free":        false,
+					"domain":         "example.com",
+					"domain_age":     10,
+					"mx_records":     []string{"mail.example.com"},
+					"smtp_check":     true,
+					"reason":         "accepted",
+					"response_time":  250,
+					"credits_used":   1,
 				},
-				Score:       0.95,
-				CreditsUsed: 1,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
@@ -101,6 +148,12 @@ func TestVerify(t *testing.T) {
 		}
 		if result.Score != 0.95 {
 			t.Errorf("expected score 0.95, got %f", result.Score)
+		}
+		if !result.IsDeliverable {
+			t.Error("expected is_deliverable to be true")
+		}
+		if result.Domain != "example.com" {
+			t.Errorf("expected domain example.com, got %s", result.Domain)
 		}
 	})
 
@@ -150,9 +203,9 @@ func TestVerify(t *testing.T) {
 		}
 	})
 
-	t.Run("handles insufficient credits error", func(t *testing.T) {
+	t.Run("handles insufficient credits error with HTTP 402", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusPaymentRequired)
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"error": map[string]string{
 					"code":    "INSUFFICIENT_CREDITS",
@@ -174,23 +227,40 @@ func TestVerify(t *testing.T) {
 	})
 }
 
-func TestVerifyBulk(t *testing.T) {
-	t.Run("submits bulk job successfully", func(t *testing.T) {
+func TestVerifyBatch(t *testing.T) {
+	t.Run("verifies batch successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/verify/bulk" {
-				t.Errorf("expected path /verify/bulk, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/verify/bulk" {
+				t.Errorf("expected path /v1/verify/bulk, got %s", r.URL.Path)
 			}
 
-			response := BulkJobResponse{
-				JobID:       "job_123",
-				Status:      JobStatusProcessing,
-				Total:       3,
-				Processed:   0,
-				Valid:       0,
-				Invalid:     0,
-				Unknown:     0,
-				CreditsUsed: 3,
-				CreatedAt:   "2025-01-15T10:30:00Z",
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"results": []map[string]interface{}{
+						{
+							"email":          "user1@example.com",
+							"status":         "valid",
+							"score":          0.95,
+							"is_deliverable": true,
+							"credits_used":   1,
+						},
+						{
+							"email":          "user2@example.com",
+							"status":         "invalid",
+							"score":          0.0,
+							"is_deliverable": false,
+							"credits_used":   0,
+						},
+					},
+					"total_emails":   2,
+					"valid_emails":   1,
+					"invalid_emails": 1,
+					"credits_used":   1,
+					"process_time":   1500,
+				},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
@@ -198,31 +268,33 @@ func TestVerifyBulk(t *testing.T) {
 		defer server.Close()
 
 		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
-		result, err := client.VerifyBulk(context.Background(), []string{
+		result, err := client.VerifyBatch(context.Background(), []string{
 			"user1@example.com",
 			"user2@example.com",
-			"user3@example.com",
 		}, nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if result.JobID != "job_123" {
-			t.Errorf("expected job ID job_123, got %s", result.JobID)
+		if len(result.Results) != 2 {
+			t.Errorf("expected 2 results, got %d", len(result.Results))
 		}
-		if result.Total != 3 {
-			t.Errorf("expected total 3, got %d", result.Total)
+		if result.TotalEmails != 2 {
+			t.Errorf("expected total 2, got %d", result.TotalEmails)
+		}
+		if result.ValidEmails != 1 {
+			t.Errorf("expected 1 valid email, got %d", result.ValidEmails)
 		}
 	})
 
-	t.Run("rejects too many emails", func(t *testing.T) {
+	t.Run("rejects more than 50 emails", func(t *testing.T) {
 		client, _ := NewClient(Config{APIKey: "test-key"})
-		emails := make([]string, 10001)
+		emails := make([]string, 51)
 		for i := range emails {
 			emails[i] = "test@example.com"
 		}
 
-		_, err := client.VerifyBulk(context.Background(), emails, nil)
+		_, err := client.VerifyBatch(context.Background(), emails, nil)
 
 		if err == nil {
 			t.Fatal("expected error")
@@ -233,65 +305,31 @@ func TestVerifyBulk(t *testing.T) {
 	})
 }
 
-func TestGetBulkJobStatus(t *testing.T) {
+func TestGetFileJobStatus(t *testing.T) {
 	t.Run("gets job status successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/verify/bulk/job_123" {
-				t.Errorf("expected path /verify/bulk/job_123, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/verify/file/job_123" {
+				t.Errorf("expected path /v1/verify/file/job_123, got %s", r.URL.Path)
 			}
 
-			progress := 50
-			response := BulkJobResponse{
-				JobID:           "job_123",
-				Status:          JobStatusProcessing,
-				Total:           100,
-				Processed:       50,
-				Valid:           40,
-				Invalid:         5,
-				Unknown:         5,
-				CreditsUsed:     100,
-				CreatedAt:       "2025-01-15T10:30:00Z",
-				ProgressPercent: &progress,
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(response)
-		}))
-		defer server.Close()
-
-		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
-		result, err := client.GetBulkJobStatus(context.Background(), "job_123")
-
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.JobID != "job_123" {
-			t.Errorf("expected job ID job_123, got %s", result.JobID)
-		}
-		if *result.ProgressPercent != 50 {
-			t.Errorf("expected progress 50, got %d", *result.ProgressPercent)
-		}
-	})
-}
-
-func TestGetBulkJobResults(t *testing.T) {
-	t.Run("gets job results successfully", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/verify/bulk/job_123/results" {
-				t.Errorf("expected path /verify/bulk/job_123/results, got %s", r.URL.Path)
-			}
-
-			response := BulkResultsResponse{
-				JobID:  "job_123",
-				Total:  100,
-				Limit:  50,
-				Offset: 0,
-				Results: []BulkResultItem{
-					{
-						Email:  "test@example.com",
-						Status: StatusValid,
-						Result: map[string]interface{}{"deliverable": true},
-						Score:  0.95,
-					},
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"job_id":           "job_123",
+					"status":           "processing",
+					"file_name":        "emails.csv",
+					"total_emails":     100,
+					"processed_emails": 50,
+					"progress_percent": 50,
+					"valid_emails":     40,
+					"invalid_emails":   5,
+					"unknown_emails":   5,
+					"role_emails":      0,
+					"catchall_emails":  0,
+					"credits_used":     50,
+					"created_at":       "2026-02-04T10:30:00Z",
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -300,19 +338,53 @@ func TestGetBulkJobResults(t *testing.T) {
 		defer server.Close()
 
 		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
-		result, err := client.GetBulkJobResults(context.Background(), "job_123", &BulkResultsOptions{
-			Limit:  50,
-			Offset: 0,
-		})
+		result, err := client.GetFileJobStatus(context.Background(), "job_123", nil)
 
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(result.Results) != 1 {
-			t.Errorf("expected 1 result, got %d", len(result.Results))
+		if result.JobID != "job_123" {
+			t.Errorf("expected job ID job_123, got %s", result.JobID)
 		}
-		if result.Results[0].Email != "test@example.com" {
-			t.Errorf("expected email test@example.com, got %s", result.Results[0].Email)
+		if result.ProgressPercent != 50 {
+			t.Errorf("expected progress 50, got %d", result.ProgressPercent)
+		}
+	})
+
+	t.Run("supports long-polling timeout parameter", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			timeout := r.URL.Query().Get("timeout")
+			if timeout != "30" {
+				t.Errorf("expected timeout=30, got %s", timeout)
+			}
+
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"job_id":           "job_123",
+					"status":           "completed",
+					"total_emails":     100,
+					"processed_emails": 100,
+					"progress_percent": 100,
+					"created_at":       "2026-02-04T10:30:00Z",
+					"completed_at":     "2026-02-04T10:32:00Z",
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(response)
+		}))
+		defer server.Close()
+
+		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
+		result, err := client.GetFileJobStatus(context.Background(), "job_123", &FileJobStatusOptions{Timeout: 30})
+
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != JobStatusCompleted {
+			t.Errorf("expected completed status, got %s", result.Status)
 		}
 	})
 }
@@ -320,19 +392,22 @@ func TestGetBulkJobResults(t *testing.T) {
 func TestGetCredits(t *testing.T) {
 	t.Run("gets credits successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/credits" {
-				t.Errorf("expected path /credits, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/credits" {
+				t.Errorf("expected path /v1/credits, got %s", r.URL.Path)
 			}
 
-			response := CreditsResponse{
-				Available: 9500,
-				Used:      500,
-				Total:     10000,
-				Plan:      "Professional",
-				ResetsAt:  "2025-02-01T00:00:00Z",
-				RateLimit: RateLimit{
-					RequestsPerHour: 10000,
-					Remaining:       9850,
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"account_id":       "abc123",
+					"api_key_id":       "key_xyz",
+					"api_key_name":     "Default API Key",
+					"credits_balance":  9500,
+					"credits_consumed": 500,
+					"credits_added":    10000,
+					"last_updated":     "2026-02-04T10:30:00Z",
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -346,11 +421,14 @@ func TestGetCredits(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if result.Available != 9500 {
-			t.Errorf("expected available 9500, got %d", result.Available)
+		if result.CreditsBalance != 9500 {
+			t.Errorf("expected credits_balance 9500, got %d", result.CreditsBalance)
 		}
-		if result.Plan != "Professional" {
-			t.Errorf("expected plan Professional, got %s", result.Plan)
+		if result.AccountID != "abc123" {
+			t.Errorf("expected account_id abc123, got %s", result.AccountID)
+		}
+		if result.APIKeyName != "Default API Key" {
+			t.Errorf("expected api_key_name 'Default API Key', got %s", result.APIKeyName)
 		}
 	})
 }
@@ -358,15 +436,23 @@ func TestGetCredits(t *testing.T) {
 func TestWebhooks(t *testing.T) {
 	t.Run("creates webhook successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/webhooks" {
-				t.Errorf("expected path /webhooks, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/webhooks" {
+				t.Errorf("expected path /v1/webhooks, got %s", r.URL.Path)
 			}
 
-			response := Webhook{
-				ID:        "webhook_123",
-				URL:       "https://example.com/webhook",
-				Events:    []WebhookEvent{EventVerificationCompleted},
-				CreatedAt: "2025-01-15T10:30:00Z",
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"id":         "webhook_123",
+					"url":        "https://example.com/webhook",
+					"events":     []string{"file.completed", "file.failed"},
+					"secret":     "test-secret",
+					"is_active":  true,
+					"created_at": "2026-02-04T10:30:00Z",
+					"updated_at": "2026-02-04T10:30:00Z",
+				},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
@@ -376,7 +462,7 @@ func TestWebhooks(t *testing.T) {
 		client, _ := NewClient(Config{APIKey: "test-key", BaseURL: server.URL})
 		result, err := client.CreateWebhook(context.Background(), WebhookConfig{
 			URL:    "https://example.com/webhook",
-			Events: []WebhookEvent{EventVerificationCompleted},
+			Events: []WebhookEvent{EventFileCompleted, EventFileFailed},
 		})
 
 		if err != nil {
@@ -385,16 +471,32 @@ func TestWebhooks(t *testing.T) {
 		if result.ID != "webhook_123" {
 			t.Errorf("expected ID webhook_123, got %s", result.ID)
 		}
+		if result.Secret != "test-secret" {
+			t.Errorf("expected secret test-secret, got %s", result.Secret)
+		}
+		if !result.IsActive {
+			t.Error("expected is_active to be true")
+		}
 	})
 
 	t.Run("lists webhooks successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			response := []Webhook{
-				{
-					ID:        "webhook_123",
-					URL:       "https://example.com/webhook",
-					Events:    []WebhookEvent{EventVerificationCompleted},
-					CreatedAt: "2025-01-15T10:30:00Z",
+			response := map[string]interface{}{
+				"success": true,
+				"code":    "0",
+				"message": "Success",
+				"data": map[string]interface{}{
+					"webhooks": []map[string]interface{}{
+						{
+							"id":         "webhook_123",
+							"url":        "https://example.com/webhook",
+							"events":     []string{"file.completed"},
+							"is_active":  true,
+							"created_at": "2026-02-04T10:30:00Z",
+							"updated_at": "2026-02-04T10:30:00Z",
+						},
+					},
+					"total": 1,
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -408,15 +510,18 @@ func TestWebhooks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(result) != 1 {
-			t.Errorf("expected 1 webhook, got %d", len(result))
+		if len(result.Webhooks) != 1 {
+			t.Errorf("expected 1 webhook, got %d", len(result.Webhooks))
+		}
+		if result.Total != 1 {
+			t.Errorf("expected total 1, got %d", result.Total)
 		}
 	})
 
 	t.Run("deletes webhook successfully", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/webhooks/webhook_123" {
-				t.Errorf("expected path /webhooks/webhook_123, got %s", r.URL.Path)
+			if r.URL.Path != "/v1/webhooks/webhook_123" {
+				t.Errorf("expected path /v1/webhooks/webhook_123, got %s", r.URL.Path)
 			}
 			w.WriteHeader(http.StatusNoContent)
 		}))
@@ -483,10 +588,13 @@ func TestErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("InsufficientCreditsError", func(t *testing.T) {
+	t.Run("InsufficientCreditsError with HTTP 402", func(t *testing.T) {
 		err := NewInsufficientCreditsError("")
 		if err.Code != "INSUFFICIENT_CREDITS" {
 			t.Errorf("expected code INSUFFICIENT_CREDITS, got %s", err.Code)
+		}
+		if err.StatusCode != 402 {
+			t.Errorf("expected status 402, got %d", err.StatusCode)
 		}
 	})
 
@@ -501,6 +609,43 @@ func TestErrors(t *testing.T) {
 		err := NewTimeoutError("Request timed out")
 		if err.Message != "Request timed out" {
 			t.Errorf("expected message 'Request timed out', got %s", err.Message)
+		}
+	})
+}
+
+func TestStatusEnums(t *testing.T) {
+	t.Run("verification status enums", func(t *testing.T) {
+		statuses := []VerificationStatus{
+			StatusValid,
+			StatusInvalid,
+			StatusUnknown,
+			StatusRisky,
+			StatusDisposable,
+			StatusCatchall,
+			StatusRole,
+		}
+
+		expected := []string{"valid", "invalid", "unknown", "risky", "disposable", "catchall", "role"}
+
+		for i, status := range statuses {
+			if string(status) != expected[i] {
+				t.Errorf("expected status %s, got %s", expected[i], status)
+			}
+		}
+	})
+
+	t.Run("webhook event enums", func(t *testing.T) {
+		events := []WebhookEvent{
+			EventFileCompleted,
+			EventFileFailed,
+		}
+
+		expected := []string{"file.completed", "file.failed"}
+
+		for i, event := range events {
+			if string(event) != expected[i] {
+				t.Errorf("expected event %s, got %s", expected[i], event)
+			}
 		}
 	})
 }

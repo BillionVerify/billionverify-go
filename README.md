@@ -36,7 +36,9 @@ func main() {
         log.Fatal(err)
     }
 
+    fmt.Printf("Email: %s\n", result.Email)
     fmt.Printf("Status: %s\n", result.Status)
+    fmt.Printf("Deliverable: %t\n", result.IsDeliverable)
 }
 ```
 
@@ -44,60 +46,99 @@ func main() {
 
 ```go
 client, err := emailverify.NewClient(emailverify.Config{
-    APIKey:  "your-api-key",                           // Required
-    BaseURL: "https://api.emailverify.ai/v1",       // Optional
-    Timeout: 30 * time.Second,                         // Optional (default: 30s)
-    Retries: 3,                                        // Optional (default: 3)
+    APIKey:  "your-api-key",                      // Required
+    BaseURL: "https://api.emailverify.ai",        // Optional
+    Timeout: 30 * time.Second,                    // Optional (default: 30s)
+    Retries: 3,                                   // Optional (default: 3)
 })
 ```
 
 ## Single Email Verification
 
+Uses the `/verify/single` endpoint for verifying individual emails.
+
 ```go
 result, err := client.Verify(context.Background(), "user@example.com", &emailverify.VerifyOptions{
-    SMTPCheck: true,  // Optional: Perform SMTP verification (default: true)
-    Timeout:   5000,  // Optional: Verification timeout in ms
+    CheckSMTP: true, // Optional: Perform SMTP verification (default: true)
 })
 if err != nil {
     log.Fatal(err)
 }
 
+// Flat response structure (no nested Result object)
 fmt.Printf("Email: %s\n", result.Email)
-fmt.Printf("Status: %s\n", result.Status)  // valid, invalid, unknown, accept_all
+fmt.Printf("Status: %s\n", result.Status)          // valid, invalid, unknown, risky, disposable, catchall, role
 fmt.Printf("Score: %.2f\n", result.Score)
-fmt.Printf("Deliverable: %t\n", result.Result.Deliverable)
-fmt.Printf("Disposable: %t\n", result.Result.Disposable)
+fmt.Printf("Deliverable: %t\n", result.IsDeliverable)
+fmt.Printf("Disposable: %t\n", result.IsDisposable)
+fmt.Printf("Catchall: %t\n", result.IsCatchall)
+fmt.Printf("Role: %t\n", result.IsRole)
+fmt.Printf("Free: %t\n", result.IsFree)
+fmt.Printf("Domain: %s\n", result.Domain)
+fmt.Printf("SMTP Check: %t\n", result.SMTPCheck)
+fmt.Printf("Credits Used: %d\n", result.CreditsUsed)
 ```
 
-## Bulk Email Verification
+## Batch Email Verification (Synchronous)
+
+Use `VerifyBatch()` for synchronous verification of up to 50 emails at once.
 
 ```go
-// Submit a bulk verification job
-job, err := client.VerifyBulk(context.Background(), []string{
+// Submit a batch verification (max 50 emails)
+response, err := client.VerifyBatch(context.Background(), []string{
     "user1@example.com",
     "user2@example.com",
     "user3@example.com",
-}, &emailverify.BulkVerifyOptions{
-    SMTPCheck:  true,
-    WebhookURL: "https://your-app.com/webhooks/emailverify",
+}, &emailverify.BatchVerifyOptions{
+    CheckSMTP: true, // Optional: Perform SMTP verification (default: true)
 })
 if err != nil {
     log.Fatal(err)
 }
 
-fmt.Printf("Job ID: %s\n", job.JobID)
+fmt.Printf("Total Emails: %d\n", response.TotalEmails)
+fmt.Printf("Valid Emails: %d\n", response.ValidEmails)
+fmt.Printf("Invalid Emails: %d\n", response.InvalidEmails)
+fmt.Printf("Credits Used: %d\n", response.CreditsUsed)
 
-// Check job status
-status, err := client.GetBulkJobStatus(context.Background(), job.JobID)
+// Iterate through results
+for _, item := range response.Results {
+    fmt.Printf("%s: %s (deliverable: %t)\n", item.Email, item.Status, item.IsDeliverable)
+}
+```
+
+## File Upload Verification (Asynchronous)
+
+Use `UploadFile()` for asynchronous verification of large email lists from CSV/TXT files.
+
+```go
+// Upload a file for verification
+job, err := client.UploadFile(context.Background(), "emails.csv", &emailverify.FileUploadOptions{
+    CheckSMTP:        true,    // Optional: Perform SMTP verification
+    EmailColumn:      "email", // Optional: Column name containing emails
+    PreserveOriginal: true,    // Optional: Keep original columns in results
+})
 if err != nil {
     log.Fatal(err)
 }
-fmt.Printf("Progress: %d%%\n", *status.ProgressPercent)
+
+fmt.Printf("Task ID: %s\n", job.TaskID)
+fmt.Printf("Status: %s\n", job.Status)
+fmt.Printf("File Name: %s\n", job.FileName)
+
+// Get job status with optional long-polling (timeout in seconds, max 300)
+status, err := client.GetFileJobStatus(context.Background(), job.TaskID, &emailverify.FileJobStatusOptions{
+    Timeout: 60, // Wait up to 60 seconds for status change
+})
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Progress: %d%%\n", status.ProgressPercent)
 
 // Wait for completion (polling)
-completed, err := client.WaitForBulkJobCompletion(
+completed, err := client.WaitForFileJobCompletion(
     context.Background(),
-    job.JobID,
+    job.TaskID,
     5*time.Second,   // poll interval
     10*time.Minute,  // max wait
 )
@@ -105,19 +146,41 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Get results
-results, err := client.GetBulkJobResults(context.Background(), job.JobID, &emailverify.BulkResultsOptions{
-    Limit:  100,
-    Offset: 0,
-    Status: emailverify.StatusValid, // Optional: filter by status
+fmt.Printf("Status: %s\n", completed.Status)
+fmt.Printf("Valid: %d\n", completed.ValidEmails)
+fmt.Printf("Invalid: %d\n", completed.InvalidEmails)
+
+// Download results with optional filters
+validOnly := true
+csvData, err := client.GetFileJobResults(context.Background(), job.TaskID, &emailverify.FileResultsOptions{
+    Valid:      &validOnly, // Only get valid emails
+    Invalid:    nil,        // Include all
+    Catchall:   nil,
+    Role:       nil,
+    Unknown:    nil,
+    Disposable: nil,
+    Risky:      nil,
 })
 if err != nil {
     log.Fatal(err)
 }
 
-for _, item := range results.Results {
-    fmt.Printf("%s: %s\n", item.Email, item.Status)
+// Save results to file
+os.WriteFile("results.csv", csvData, 0644)
+```
+
+## Health Check
+
+Use `Health()` to check API availability (no authentication required).
+
+```go
+health, err := client.Health(context.Background())
+if err != nil {
+    log.Fatal(err)
 }
+
+fmt.Printf("Status: %s\n", health.Status)
+fmt.Printf("Time: %d\n", health.Time)
 ```
 
 ## Credits
@@ -128,31 +191,39 @@ if err != nil {
     log.Fatal(err)
 }
 
-fmt.Printf("Available: %d\n", credits.Available)
-fmt.Printf("Plan: %s\n", credits.Plan)
-fmt.Printf("Rate Limit Remaining: %d\n", credits.RateLimit.Remaining)
+fmt.Printf("Credits Balance: %d\n", credits.CreditsBalance)
+fmt.Printf("Credits Consumed: %d\n", credits.CreditsConsumed)
+fmt.Printf("Account ID: %s\n", credits.AccountID)
 ```
 
 ## Webhooks
 
+Webhook events: `file.completed`, `file.failed`
+
 ```go
 // Create a webhook
 webhook, err := client.CreateWebhook(context.Background(), emailverify.WebhookConfig{
-    URL:    "https://your-app.com/webhooks/emailverify",
+    URL: "https://your-app.com/webhooks/emailverify",
     Events: []emailverify.WebhookEvent{
-        emailverify.EventVerificationCompleted,
-        emailverify.EventBulkCompleted,
+        emailverify.EventFileCompleted, // "file.completed"
+        emailverify.EventFileFailed,    // "file.failed"
     },
-    Secret: "your-webhook-secret",
 })
 if err != nil {
     log.Fatal(err)
 }
 
+fmt.Printf("Webhook ID: %s\n", webhook.ID)
+fmt.Printf("Secret: %s\n", webhook.Secret) // Save this for signature verification!
+
 // List webhooks
 webhooks, err := client.ListWebhooks(context.Background())
 if err != nil {
     log.Fatal(err)
+}
+
+for _, wh := range webhooks.Webhooks {
+    fmt.Printf("ID: %s, URL: %s, Active: %t\n", wh.ID, wh.URL, wh.IsActive)
 }
 
 // Delete a webhook
@@ -161,8 +232,29 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Verify webhook signature
-isValid := emailverify.VerifyWebhookSignature(rawBody, signature, "your-webhook-secret")
+// Verify webhook signature in your handler
+func webhookHandler(w http.ResponseWriter, r *http.Request) {
+    body, _ := io.ReadAll(r.Body)
+    signature := r.Header.Get("X-EmailVerify-Signature")
+
+    if !emailverify.VerifyWebhookSignature(string(body), signature, "your-webhook-secret") {
+        http.Error(w, "Invalid signature", http.StatusUnauthorized)
+        return
+    }
+
+    // Process the webhook payload
+    var payload emailverify.WebhookPayload
+    json.Unmarshal(body, &payload)
+
+    switch payload.Event {
+    case emailverify.EventFileCompleted:
+        // Handle file.completed event
+    case emailverify.EventFileFailed:
+        // Handle file.failed event
+    }
+
+    w.WriteHeader(http.StatusOK)
+}
 ```
 
 ## Error Handling
@@ -215,11 +307,38 @@ result, err := client.Verify(ctx, "user@example.com", nil)
 ## Status Constants
 
 ```go
-emailverify.StatusValid     // "valid"
-emailverify.StatusInvalid   // "invalid"
-emailverify.StatusUnknown   // "unknown"
-emailverify.StatusAcceptAll // "accept_all"
+emailverify.StatusValid      // "valid"
+emailverify.StatusInvalid    // "invalid"
+emailverify.StatusUnknown    // "unknown"
+emailverify.StatusRisky      // "risky"
+emailverify.StatusDisposable // "disposable"
+emailverify.StatusCatchall   // "catchall"
+emailverify.StatusRole       // "role"
 ```
+
+## Job Status Constants
+
+```go
+emailverify.JobStatusPending    // "pending"
+emailverify.JobStatusProcessing // "processing"
+emailverify.JobStatusCompleted  // "completed"
+emailverify.JobStatusFailed     // "failed"
+```
+
+## Webhook Event Constants
+
+```go
+emailverify.EventFileCompleted // "file.completed"
+emailverify.EventFileFailed    // "file.failed"
+```
+
+## Examples
+
+See the [examples](./examples) directory for complete working examples:
+
+- [Basic Usage](./examples/basic/main.go) - Single verification, batch verification, credits, health check
+- [File Upload](./examples/file_upload/main.go) - Async file verification with status polling
+- [Webhooks](./examples/webhooks/main.go) - Webhook management and signature verification
 
 ## License
 

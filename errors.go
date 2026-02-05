@@ -85,7 +85,7 @@ func NewInsufficientCreditsError(message string) *InsufficientCreditsError {
 		EmailVerifyError: EmailVerifyError{
 			Code:       "INSUFFICIENT_CREDITS",
 			Message:    message,
-			StatusCode: 403,
+			StatusCode: 402,
 		},
 	}
 }
