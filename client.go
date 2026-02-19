@@ -1,4 +1,4 @@
-package emailverify
+package billionverify
 
 import (
 	"bytes"
@@ -20,10 +20,10 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://api.emailverify.ai"
+	defaultBaseURL = "https://api.billionverify.com"
 	defaultTimeout = 30 * time.Second
 	defaultRetries = 3
-	userAgent      = "emailverify-go/1.0.0"
+	userAgent      = "billionverify-go/1.0.0"
 )
 
 // Config contains client configuration options.
@@ -34,7 +34,7 @@ type Config struct {
 	Retries int
 }
 
-// Client is the EmailVerify API client.
+// Client is the BillionVerify API client.
 type Client struct {
 	apiKey     string
 	baseURL    string
@@ -43,7 +43,7 @@ type Client struct {
 	httpClient *http.Client
 }
 
-// NewClient creates a new EmailVerify client.
+// NewClient creates a new BillionVerify client.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
 		return nil, NewAuthenticationError("API key is required")
@@ -87,14 +87,14 @@ func (c *Client) requestWithRetry(ctx context.Context, method, path string, body
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
 		if err != nil {
-			return &EmailVerifyError{Code: "MARSHAL_ERROR", Message: err.Error()}
+			return &BillionVerifyError{Code: "MARSHAL_ERROR", Message: err.Error()}
 		}
 		bodyReader = bytes.NewReader(jsonBody)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, bodyReader)
 	if err != nil {
-		return &EmailVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
 	}
 
 	req.Header.Set("EV-API-KEY", c.apiKey)
@@ -106,13 +106,13 @@ func (c *Client) requestWithRetry(ctx context.Context, method, path string, body
 		if ctx.Err() == context.DeadlineExceeded {
 			return NewTimeoutError(fmt.Sprintf("Request timed out after %v", c.timeout))
 		}
-		return &EmailVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return &EmailVerifyError{Code: "READ_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "READ_ERROR", Message: err.Error()}
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
@@ -122,7 +122,7 @@ func (c *Client) requestWithRetry(ctx context.Context, method, path string, body
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		if result != nil && len(respBody) > 0 {
 			if err := json.Unmarshal(respBody, result); err != nil {
-				return &EmailVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
+				return &BillionVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
 			}
 		}
 		return nil
@@ -137,7 +137,7 @@ func (c *Client) requestNoAuth(ctx context.Context, method, path string, result 
 
 	req, err := http.NewRequestWithContext(ctx, method, reqURL, nil)
 	if err != nil {
-		return &EmailVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -148,25 +148,25 @@ func (c *Client) requestNoAuth(ctx context.Context, method, path string, result 
 		if ctx.Err() == context.DeadlineExceeded {
 			return NewTimeoutError(fmt.Sprintf("Request timed out after %v", c.timeout))
 		}
-		return &EmailVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return &EmailVerifyError{Code: "READ_ERROR", Message: err.Error()}
+		return &BillionVerifyError{Code: "READ_ERROR", Message: err.Error()}
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		if result != nil && len(respBody) > 0 {
 			if err := json.Unmarshal(respBody, result); err != nil {
-				return &EmailVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
+				return &BillionVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
 			}
 		}
 		return nil
 	}
 
-	return &EmailVerifyError{Code: "REQUEST_FAILED", Message: resp.Status, StatusCode: resp.StatusCode}
+	return &BillionVerifyError{Code: "REQUEST_FAILED", Message: resp.Status, StatusCode: resp.StatusCode}
 }
 
 func (c *Client) handleErrorResponse(ctx context.Context, resp *http.Response, body []byte, method, path string, reqBody interface{}, result interface{}, attempt int) error {
@@ -214,10 +214,10 @@ func (c *Client) handleErrorResponse(ctx context.Context, resp *http.Response, b
 			time.Sleep(time.Duration(1<<attempt) * time.Second)
 			return c.requestWithRetry(ctx, method, path, reqBody, result, attempt+1)
 		}
-		return &EmailVerifyError{Code: code, Message: message, StatusCode: resp.StatusCode}
+		return &BillionVerifyError{Code: code, Message: message, StatusCode: resp.StatusCode}
 
 	default:
-		return &EmailVerifyError{Code: code, Message: message, StatusCode: resp.StatusCode}
+		return &BillionVerifyError{Code: code, Message: message, StatusCode: resp.StatusCode}
 	}
 }
 
@@ -286,7 +286,7 @@ func (c *Client) VerifyBatch(ctx context.Context, emails []string, opts *BatchVe
 func (c *Client) UploadFile(ctx context.Context, filePath string, opts *FileUploadOptions) (*FileUploadResponse, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, &EmailVerifyError{Code: "FILE_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "FILE_ERROR", Message: err.Error()}
 	}
 	defer file.Close()
 
@@ -300,11 +300,11 @@ func (c *Client) UploadFileReader(ctx context.Context, reader io.Reader, filenam
 
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
-		return nil, &EmailVerifyError{Code: "MULTIPART_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "MULTIPART_ERROR", Message: err.Error()}
 	}
 
 	if _, err := io.Copy(part, reader); err != nil {
-		return nil, &EmailVerifyError{Code: "COPY_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "COPY_ERROR", Message: err.Error()}
 	}
 
 	// Add optional form fields
@@ -325,13 +325,13 @@ func (c *Client) UploadFileReader(ctx context.Context, reader io.Reader, filenam
 	}
 
 	if err := writer.Close(); err != nil {
-		return nil, &EmailVerifyError{Code: "MULTIPART_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "MULTIPART_ERROR", Message: err.Error()}
 	}
 
 	reqURL := c.baseURL + "/v1/verify/file"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, &body)
 	if err != nil {
-		return nil, &EmailVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
 	}
 
 	req.Header.Set("EV-API-KEY", c.apiKey)
@@ -343,13 +343,13 @@ func (c *Client) UploadFileReader(ctx context.Context, reader io.Reader, filenam
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, NewTimeoutError(fmt.Sprintf("Request timed out after %v", c.timeout))
 		}
-		return nil, &EmailVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &EmailVerifyError{Code: "READ_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "READ_ERROR", Message: err.Error()}
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
@@ -360,7 +360,7 @@ func (c *Client) UploadFileReader(ctx context.Context, reader io.Reader, filenam
 			Data    FileUploadResponse `json:"data"`
 		}
 		if err := json.Unmarshal(respBody, &apiResp); err != nil {
-			return nil, &EmailVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
+			return nil, &BillionVerifyError{Code: "UNMARSHAL_ERROR", Message: err.Error()}
 		}
 		return &apiResp.Data, nil
 	}
@@ -384,7 +384,7 @@ func (c *Client) UploadFileReader(ctx context.Context, reader io.Reader, filenam
 	case http.StatusBadRequest:
 		return nil, NewValidationError(message, errResp.Error.Details)
 	default:
-		return nil, &EmailVerifyError{Code: errResp.Error.Code, Message: message, StatusCode: resp.StatusCode}
+		return nil, &BillionVerifyError{Code: errResp.Error.Code, Message: message, StatusCode: resp.StatusCode}
 	}
 }
 
@@ -449,7 +449,7 @@ func (c *Client) GetFileJobResults(ctx context.Context, jobID string, opts *File
 	reqURL := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, &EmailVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
 	}
 
 	req.Header.Set("EV-API-KEY", c.apiKey)
@@ -468,7 +468,7 @@ func (c *Client) GetFileJobResults(ctx context.Context, jobID string, opts *File
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, NewTimeoutError(fmt.Sprintf("Request timed out after %v", c.timeout))
 		}
-		return nil, &EmailVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
+		return nil, &BillionVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
 	}
 	defer resp.Body.Close()
 
@@ -478,11 +478,11 @@ func (c *Client) GetFileJobResults(ctx context.Context, jobID string, opts *File
 		if location != "" {
 			redirectReq, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 			if err != nil {
-				return nil, &EmailVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
+				return nil, &BillionVerifyError{Code: "REQUEST_ERROR", Message: err.Error()}
 			}
 			redirectResp, err := c.httpClient.Do(redirectReq)
 			if err != nil {
-				return nil, &EmailVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
+				return nil, &BillionVerifyError{Code: "NETWORK_ERROR", Message: err.Error()}
 			}
 			defer redirectResp.Body.Close()
 			return io.ReadAll(redirectResp.Body)
@@ -511,7 +511,7 @@ func (c *Client) GetFileJobResults(ctx context.Context, jobID string, opts *File
 	case http.StatusNotFound:
 		return nil, NewNotFoundError(message)
 	default:
-		return nil, &EmailVerifyError{Code: errResp.Error.Code, Message: message, StatusCode: resp.StatusCode}
+		return nil, &BillionVerifyError{Code: errResp.Error.Code, Message: message, StatusCode: resp.StatusCode}
 	}
 }
 

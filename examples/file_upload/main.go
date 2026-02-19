@@ -1,4 +1,4 @@
-// Package main demonstrates file upload verification using the EmailVerify Go SDK.
+// Package main demonstrates file upload verification using the BillionVerify Go SDK.
 // This example shows how to upload a file for async verification, poll for status
 // with long-polling, and download results with filters.
 package main
@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	emailverify "github.com/emailverify-ai/go-sdk"
+	billionverify "github.com/BillionVerify/go-sdk"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	}
 
 	// Create a new client with longer timeout for file operations
-	client, err := emailverify.NewClient(emailverify.Config{
+	client, err := billionverify.NewClient(billionverify.Config{
 		APIKey:  apiKey,
 		Timeout: 60 * time.Second, // Longer timeout for file uploads
 		Retries: 3,
@@ -54,7 +54,7 @@ func main() {
 
 	// 1. Upload File for Verification
 	fmt.Println("=== Uploading File ===")
-	uploadResponse, err := client.UploadFile(ctx, filePath, &emailverify.FileUploadOptions{
+	uploadResponse, err := client.UploadFile(ctx, filePath, &billionverify.FileUploadOptions{
 		CheckSMTP:        true,    // Perform SMTP verification
 		EmailColumn:      "email", // Column name containing emails (optional)
 		PreserveOriginal: true,    // Keep original columns in results
@@ -83,7 +83,7 @@ func main() {
 	fmt.Println("=== Checking Job Status (with long-polling) ===")
 
 	// Get status with long-polling (wait up to 30 seconds for status change)
-	status, err := client.GetFileJobStatus(ctx, jobID, &emailverify.FileJobStatusOptions{
+	status, err := client.GetFileJobStatus(ctx, jobID, &billionverify.FileJobStatusOptions{
 		Timeout: 30, // Wait up to 30 seconds for status change
 	})
 	if err != nil {
@@ -115,7 +115,7 @@ func main() {
 	fmt.Println()
 
 	// Check if job failed
-	if completed.Status == emailverify.JobStatusFailed {
+	if completed.Status == billionverify.JobStatusFailed {
 		log.Fatal("Job failed. Please check your file and try again.")
 	}
 
@@ -137,7 +137,7 @@ func main() {
 	// 5. Download Only Valid Emails
 	fmt.Println("=== Downloading Valid Emails Only ===")
 	validOnly := true
-	validResults, err := client.GetFileJobResults(ctx, jobID, &emailverify.FileResultsOptions{
+	validResults, err := client.GetFileJobResults(ctx, jobID, &billionverify.FileResultsOptions{
 		Valid: &validOnly,
 	})
 	if err != nil {
@@ -156,7 +156,7 @@ func main() {
 	fmt.Println("=== Downloading Invalid and Disposable Emails ===")
 	invalidOnly := true
 	disposableOnly := true
-	badResults, err := client.GetFileJobResults(ctx, jobID, &emailverify.FileResultsOptions{
+	badResults, err := client.GetFileJobResults(ctx, jobID, &billionverify.FileResultsOptions{
 		Invalid:    &invalidOnly,
 		Disposable: &disposableOnly,
 	})
@@ -176,7 +176,7 @@ func main() {
 	fmt.Println("=== Downloading Catchall and Risky Emails ===")
 	catchallOnly := true
 	riskyOnly := true
-	riskyResults, err := client.GetFileJobResults(ctx, jobID, &emailverify.FileResultsOptions{
+	riskyResults, err := client.GetFileJobResults(ctx, jobID, &billionverify.FileResultsOptions{
 		Catchall: &catchallOnly,
 		Risky:    &riskyOnly,
 	})
@@ -207,13 +207,13 @@ func main() {
 }
 
 // printJobStatus prints the current job status
-func printJobStatus(status *emailverify.FileJobResponse) {
+func printJobStatus(status *billionverify.FileJobResponse) {
 	fmt.Printf("Job ID: %s\n", status.JobID)
 	fmt.Printf("Status: %s\n", status.Status)
 	fmt.Printf("Progress: %d%%\n", status.ProgressPercent)
 	fmt.Printf("Processed: %d / %d\n", status.ProcessedEmails, status.TotalEmails)
 
-	if status.Status == emailverify.JobStatusCompleted || status.Status == emailverify.JobStatusFailed {
+	if status.Status == billionverify.JobStatusCompleted || status.Status == billionverify.JobStatusFailed {
 		fmt.Printf("Valid: %d\n", status.ValidEmails)
 		fmt.Printf("Invalid: %d\n", status.InvalidEmails)
 		fmt.Printf("Unknown: %d\n", status.UnknownEmails)
@@ -223,12 +223,12 @@ func printJobStatus(status *emailverify.FileJobResponse) {
 
 // handleError demonstrates proper error handling for the SDK
 func handleError(err error) {
-	var authErr *emailverify.AuthenticationError
-	var rateLimitErr *emailverify.RateLimitError
-	var validationErr *emailverify.ValidationError
-	var creditsErr *emailverify.InsufficientCreditsError
-	var notFoundErr *emailverify.NotFoundError
-	var timeoutErr *emailverify.TimeoutError
+	var authErr *billionverify.AuthenticationError
+	var rateLimitErr *billionverify.RateLimitError
+	var validationErr *billionverify.ValidationError
+	var creditsErr *billionverify.InsufficientCreditsError
+	var notFoundErr *billionverify.NotFoundError
+	var timeoutErr *billionverify.TimeoutError
 
 	switch {
 	case errors.As(err, &authErr):

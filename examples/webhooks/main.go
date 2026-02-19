@@ -1,4 +1,4 @@
-// Package main demonstrates webhook management using the EmailVerify Go SDK.
+// Package main demonstrates webhook management using the BillionVerify Go SDK.
 // This example shows how to create, list, and delete webhooks, as well as
 // how to verify webhook signatures in an HTTP handler.
 package main
@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	emailverify "github.com/emailverify-ai/go-sdk"
+	billionverify "github.com/BillionVerify/go-sdk"
 )
 
 // Store webhook secret globally (in production, use secure storage)
@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// Create a new client
-	client, err := emailverify.NewClient(emailverify.Config{
+	client, err := billionverify.NewClient(billionverify.Config{
 		APIKey:  apiKey,
 		Timeout: 30 * time.Second,
 		Retries: 3,
@@ -63,15 +63,15 @@ func main() {
 	// Get webhook URL from environment or use a placeholder
 	webhookURL := os.Getenv("WEBHOOK_URL")
 	if webhookURL == "" {
-		webhookURL = "https://your-app.com/webhooks/emailverify"
+		webhookURL = "https://your-app.com/webhooks/billionverify"
 		fmt.Printf("Note: Using placeholder URL. Set WEBHOOK_URL environment variable for real usage.\n")
 	}
 
-	webhook, err := client.CreateWebhook(ctx, emailverify.WebhookConfig{
+	webhook, err := client.CreateWebhook(ctx, billionverify.WebhookConfig{
 		URL: webhookURL,
-		Events: []emailverify.WebhookEvent{
-			emailverify.EventFileCompleted, // "file.completed"
-			emailverify.EventFileFailed,    // "file.failed"
+		Events: []billionverify.WebhookEvent{
+			billionverify.EventFileCompleted, // "file.completed"
+			billionverify.EventFileFailed,    // "file.failed"
 		},
 	})
 	if err != nil {
@@ -119,8 +119,8 @@ func main() {
 
 	// 5. Demonstrate Webhook Event Constants
 	fmt.Println("=== Webhook Event Constants ===")
-	fmt.Printf("File Completed: %s\n", emailverify.EventFileCompleted)
-	fmt.Printf("File Failed: %s\n", emailverify.EventFileFailed)
+	fmt.Printf("File Completed: %s\n", billionverify.EventFileCompleted)
+	fmt.Printf("File Failed: %s\n", billionverify.EventFileFailed)
 	fmt.Println()
 
 	// 6. Start Webhook Server (optional demo)
@@ -129,7 +129,7 @@ func main() {
 	fmt.Println()
 	fmt.Println("Example webhook handler code:")
 	fmt.Print(`
-http.HandleFunc("/webhooks/emailverify", webhookHandler)
+http.HandleFunc("/webhooks/billionverify", webhookHandler)
 http.ListenAndServe(":8080", nil)
 `)
 	fmt.Println()
@@ -137,12 +137,12 @@ http.ListenAndServe(":8080", nil)
 	// Optionally start the server
 	if os.Getenv("START_SERVER") == "true" {
 		fmt.Println("Starting webhook server on :8080...")
-		http.HandleFunc("/webhooks/emailverify", webhookHandler)
+		http.HandleFunc("/webhooks/billionverify", webhookHandler)
 		log.Fatal(http.ListenAndServe(":8080", nil))
 	}
 }
 
-// webhookHandler handles incoming webhook requests from EmailVerify
+// webhookHandler handles incoming webhook requests from BillionVerify
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	// Only accept POST requests
 	if r.Method != http.MethodPost {
@@ -160,22 +160,22 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	// Get the signature from headers
-	signature := r.Header.Get("X-EmailVerify-Signature")
+	signature := r.Header.Get("X-BillionVerify-Signature")
 	if signature == "" {
-		log.Println("Missing X-EmailVerify-Signature header")
+		log.Println("Missing X-BillionVerify-Signature header")
 		http.Error(w, "Missing signature", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the webhook signature
-	if !emailverify.VerifyWebhookSignature(string(body), signature, webhookSecret) {
+	if !billionverify.VerifyWebhookSignature(string(body), signature, webhookSecret) {
 		log.Println("Invalid webhook signature")
 		http.Error(w, "Invalid signature", http.StatusUnauthorized)
 		return
 	}
 
 	// Parse the webhook payload
-	var payload emailverify.WebhookPayload
+	var payload billionverify.WebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		log.Printf("Failed to parse webhook payload: %v", err)
 		http.Error(w, "Invalid payload", http.StatusBadRequest)
@@ -186,10 +186,10 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Received webhook event: %s at %s", payload.Event, payload.Timestamp)
 
 	switch payload.Event {
-	case emailverify.EventFileCompleted:
+	case billionverify.EventFileCompleted:
 		handleFileCompleted(payload.Data)
 
-	case emailverify.EventFileFailed:
+	case billionverify.EventFileFailed:
 		handleFileFailed(payload.Data)
 
 	default:
@@ -254,12 +254,12 @@ func handleFileFailed(data map[string]interface{}) {
 
 // handleError demonstrates proper error handling for the SDK
 func handleError(err error) {
-	var authErr *emailverify.AuthenticationError
-	var rateLimitErr *emailverify.RateLimitError
-	var validationErr *emailverify.ValidationError
-	var creditsErr *emailverify.InsufficientCreditsError
-	var notFoundErr *emailverify.NotFoundError
-	var timeoutErr *emailverify.TimeoutError
+	var authErr *billionverify.AuthenticationError
+	var rateLimitErr *billionverify.RateLimitError
+	var validationErr *billionverify.ValidationError
+	var creditsErr *billionverify.InsufficientCreditsError
+	var notFoundErr *billionverify.NotFoundError
+	var timeoutErr *billionverify.TimeoutError
 
 	switch {
 	case errors.As(err, &authErr):

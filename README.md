@@ -1,13 +1,13 @@
-# EmailVerify Go SDK
+# BillionVerify Go SDK
 
-Official EmailVerify Go SDK for email verification.
+Official BillionVerify Go SDK for email verification.
 
-**Documentation:** https://emailverify.ai/docs
+**Documentation:** https://billionverify.com/docs
 
 ## Installation
 
 ```bash
-go get github.com/emailverify-ai/go-sdk
+go get github.com/BillionVerify/go-sdk
 ```
 
 ## Quick Start
@@ -20,11 +20,11 @@ import (
     "fmt"
     "log"
 
-    emailverify "github.com/emailverify-ai/go-sdk"
+    billionverify "github.com/BillionVerify/go-sdk"
 )
 
 func main() {
-    client, err := emailverify.NewClient(emailverify.Config{
+    client, err := billionverify.NewClient(billionverify.Config{
         APIKey: "your-api-key",
     })
     if err != nil {
@@ -45,9 +45,9 @@ func main() {
 ## Configuration
 
 ```go
-client, err := emailverify.NewClient(emailverify.Config{
+client, err := billionverify.NewClient(billionverify.Config{
     APIKey:  "your-api-key",                      // Required
-    BaseURL: "https://api.emailverify.ai",        // Optional
+    BaseURL: "https://api.billionverify.com",        // Optional
     Timeout: 30 * time.Second,                    // Optional (default: 30s)
     Retries: 3,                                   // Optional (default: 3)
 })
@@ -58,7 +58,7 @@ client, err := emailverify.NewClient(emailverify.Config{
 Uses the `/verify/single` endpoint for verifying individual emails.
 
 ```go
-result, err := client.Verify(context.Background(), "user@example.com", &emailverify.VerifyOptions{
+result, err := client.Verify(context.Background(), "user@example.com", &billionverify.VerifyOptions{
     CheckSMTP: true, // Optional: Perform SMTP verification (default: true)
 })
 if err != nil {
@@ -89,7 +89,7 @@ response, err := client.VerifyBatch(context.Background(), []string{
     "user1@example.com",
     "user2@example.com",
     "user3@example.com",
-}, &emailverify.BatchVerifyOptions{
+}, &billionverify.BatchVerifyOptions{
     CheckSMTP: true, // Optional: Perform SMTP verification (default: true)
 })
 if err != nil {
@@ -113,7 +113,7 @@ Use `UploadFile()` for asynchronous verification of large email lists from CSV/T
 
 ```go
 // Upload a file for verification
-job, err := client.UploadFile(context.Background(), "emails.csv", &emailverify.FileUploadOptions{
+job, err := client.UploadFile(context.Background(), "emails.csv", &billionverify.FileUploadOptions{
     CheckSMTP:        true,    // Optional: Perform SMTP verification
     EmailColumn:      "email", // Optional: Column name containing emails
     PreserveOriginal: true,    // Optional: Keep original columns in results
@@ -127,7 +127,7 @@ fmt.Printf("Status: %s\n", job.Status)
 fmt.Printf("File Name: %s\n", job.FileName)
 
 // Get job status with optional long-polling (timeout in seconds, max 300)
-status, err := client.GetFileJobStatus(context.Background(), job.TaskID, &emailverify.FileJobStatusOptions{
+status, err := client.GetFileJobStatus(context.Background(), job.TaskID, &billionverify.FileJobStatusOptions{
     Timeout: 60, // Wait up to 60 seconds for status change
 })
 if err != nil {
@@ -152,7 +152,7 @@ fmt.Printf("Invalid: %d\n", completed.InvalidEmails)
 
 // Download results with optional filters
 validOnly := true
-csvData, err := client.GetFileJobResults(context.Background(), job.TaskID, &emailverify.FileResultsOptions{
+csvData, err := client.GetFileJobResults(context.Background(), job.TaskID, &billionverify.FileResultsOptions{
     Valid:      &validOnly, // Only get valid emails
     Invalid:    nil,        // Include all
     Catchall:   nil,
@@ -202,11 +202,11 @@ Webhook events: `file.completed`, `file.failed`
 
 ```go
 // Create a webhook
-webhook, err := client.CreateWebhook(context.Background(), emailverify.WebhookConfig{
-    URL: "https://your-app.com/webhooks/emailverify",
-    Events: []emailverify.WebhookEvent{
-        emailverify.EventFileCompleted, // "file.completed"
-        emailverify.EventFileFailed,    // "file.failed"
+webhook, err := client.CreateWebhook(context.Background(), billionverify.WebhookConfig{
+    URL: "https://your-app.com/webhooks/billionverify",
+    Events: []billionverify.WebhookEvent{
+        billionverify.EventFileCompleted, // "file.completed"
+        billionverify.EventFileFailed,    // "file.failed"
     },
 })
 if err != nil {
@@ -235,21 +235,21 @@ if err != nil {
 // Verify webhook signature in your handler
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
     body, _ := io.ReadAll(r.Body)
-    signature := r.Header.Get("X-EmailVerify-Signature")
+    signature := r.Header.Get("X-BillionVerify-Signature")
 
-    if !emailverify.VerifyWebhookSignature(string(body), signature, "your-webhook-secret") {
+    if !billionverify.VerifyWebhookSignature(string(body), signature, "your-webhook-secret") {
         http.Error(w, "Invalid signature", http.StatusUnauthorized)
         return
     }
 
     // Process the webhook payload
-    var payload emailverify.WebhookPayload
+    var payload billionverify.WebhookPayload
     json.Unmarshal(body, &payload)
 
     switch payload.Event {
-    case emailverify.EventFileCompleted:
+    case billionverify.EventFileCompleted:
         // Handle file.completed event
-    case emailverify.EventFileFailed:
+    case billionverify.EventFileFailed:
         // Handle file.failed event
     }
 
@@ -262,17 +262,17 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 ```go
 import (
     "errors"
-    emailverify "github.com/emailverify-ai/go-sdk"
+    billionverify "github.com/BillionVerify/go-sdk"
 )
 
 result, err := client.Verify(context.Background(), "user@example.com", nil)
 if err != nil {
-    var authErr *emailverify.AuthenticationError
-    var rateLimitErr *emailverify.RateLimitError
-    var validationErr *emailverify.ValidationError
-    var creditsErr *emailverify.InsufficientCreditsError
-    var notFoundErr *emailverify.NotFoundError
-    var timeoutErr *emailverify.TimeoutError
+    var authErr *billionverify.AuthenticationError
+    var rateLimitErr *billionverify.RateLimitError
+    var validationErr *billionverify.ValidationError
+    var creditsErr *billionverify.InsufficientCreditsError
+    var notFoundErr *billionverify.NotFoundError
+    var timeoutErr *billionverify.TimeoutError
 
     switch {
     case errors.As(err, &authErr):
@@ -307,29 +307,29 @@ result, err := client.Verify(ctx, "user@example.com", nil)
 ## Status Constants
 
 ```go
-emailverify.StatusValid      // "valid"
-emailverify.StatusInvalid    // "invalid"
-emailverify.StatusUnknown    // "unknown"
-emailverify.StatusRisky      // "risky"
-emailverify.StatusDisposable // "disposable"
-emailverify.StatusCatchall   // "catchall"
-emailverify.StatusRole       // "role"
+billionverify.StatusValid      // "valid"
+billionverify.StatusInvalid    // "invalid"
+billionverify.StatusUnknown    // "unknown"
+billionverify.StatusRisky      // "risky"
+billionverify.StatusDisposable // "disposable"
+billionverify.StatusCatchall   // "catchall"
+billionverify.StatusRole       // "role"
 ```
 
 ## Job Status Constants
 
 ```go
-emailverify.JobStatusPending    // "pending"
-emailverify.JobStatusProcessing // "processing"
-emailverify.JobStatusCompleted  // "completed"
-emailverify.JobStatusFailed     // "failed"
+billionverify.JobStatusPending    // "pending"
+billionverify.JobStatusProcessing // "processing"
+billionverify.JobStatusCompleted  // "completed"
+billionverify.JobStatusFailed     // "failed"
 ```
 
 ## Webhook Event Constants
 
 ```go
-emailverify.EventFileCompleted // "file.completed"
-emailverify.EventFileFailed    // "file.failed"
+billionverify.EventFileCompleted // "file.completed"
+billionverify.EventFileFailed    // "file.failed"
 ```
 
 ## Examples

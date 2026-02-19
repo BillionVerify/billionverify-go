@@ -1,4 +1,4 @@
-module github.com/emailverify-ai/go-sdk
+module github.com/BillionVerify/go-sdk
 
 go 1.21
 

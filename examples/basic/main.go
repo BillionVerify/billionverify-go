@@ -1,4 +1,4 @@
-// Package main demonstrates basic usage of the EmailVerify Go SDK.
+// Package main demonstrates basic usage of the BillionVerify Go SDK.
 // This example shows single email verification, batch verification,
 // getting credits, and health check.
 package main
@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	emailverify "github.com/emailverify-ai/go-sdk"
+	billionverify "github.com/BillionVerify/go-sdk"
 )
 
 func main() {
@@ -22,7 +22,7 @@ func main() {
 	}
 
 	// Create a new client
-	client, err := emailverify.NewClient(emailverify.Config{
+	client, err := billionverify.NewClient(billionverify.Config{
 		APIKey:  apiKey,
 		Timeout: 30 * time.Second,
 		Retries: 3,
@@ -60,7 +60,7 @@ func main() {
 
 	// 3. Single Email Verification
 	fmt.Println("=== Single Email Verification ===")
-	result, err := client.Verify(ctx, "test@example.com", &emailverify.VerifyOptions{
+	result, err := client.Verify(ctx, "test@example.com", &billionverify.VerifyOptions{
 		CheckSMTP: true, // Perform SMTP verification
 	})
 	if err != nil {
@@ -99,7 +99,7 @@ func main() {
 		"test@disposable.email",
 	}
 
-	batchResult, err := client.VerifyBatch(ctx, emails, &emailverify.BatchVerifyOptions{
+	batchResult, err := client.VerifyBatch(ctx, emails, &billionverify.BatchVerifyOptions{
 		CheckSMTP: true,
 	})
 	if err != nil {
@@ -134,23 +134,23 @@ func main() {
 
 	// 6. Demonstrate status checking
 	fmt.Println("=== Status Constants ===")
-	fmt.Printf("Valid status: %s\n", emailverify.StatusValid)
-	fmt.Printf("Invalid status: %s\n", emailverify.StatusInvalid)
-	fmt.Printf("Unknown status: %s\n", emailverify.StatusUnknown)
-	fmt.Printf("Risky status: %s\n", emailverify.StatusRisky)
-	fmt.Printf("Disposable status: %s\n", emailverify.StatusDisposable)
-	fmt.Printf("Catchall status: %s\n", emailverify.StatusCatchall)
-	fmt.Printf("Role status: %s\n", emailverify.StatusRole)
+	fmt.Printf("Valid status: %s\n", billionverify.StatusValid)
+	fmt.Printf("Invalid status: %s\n", billionverify.StatusInvalid)
+	fmt.Printf("Unknown status: %s\n", billionverify.StatusUnknown)
+	fmt.Printf("Risky status: %s\n", billionverify.StatusRisky)
+	fmt.Printf("Disposable status: %s\n", billionverify.StatusDisposable)
+	fmt.Printf("Catchall status: %s\n", billionverify.StatusCatchall)
+	fmt.Printf("Role status: %s\n", billionverify.StatusRole)
 }
 
 // handleError demonstrates proper error handling for the SDK
 func handleError(err error) {
-	var authErr *emailverify.AuthenticationError
-	var rateLimitErr *emailverify.RateLimitError
-	var validationErr *emailverify.ValidationError
-	var creditsErr *emailverify.InsufficientCreditsError
-	var notFoundErr *emailverify.NotFoundError
-	var timeoutErr *emailverify.TimeoutError
+	var authErr *billionverify.AuthenticationError
+	var rateLimitErr *billionverify.RateLimitError
+	var validationErr *billionverify.ValidationError
+	var creditsErr *billionverify.InsufficientCreditsError
+	var notFoundErr *billionverify.NotFoundError
+	var timeoutErr *billionverify.TimeoutError
 
 	switch {
 	case errors.As(err, &authErr):

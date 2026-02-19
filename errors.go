@@ -1,22 +1,22 @@
-package emailverify
+package billionverify
 
 import "fmt"
 
-// EmailVerifyError is the base error type for all SDK errors.
-type EmailVerifyError struct {
+// BillionVerifyError is the base error type for all SDK errors.
+type BillionVerifyError struct {
 	Code       string
 	Message    string
 	StatusCode int
 	Details    string
 }
 
-func (e *EmailVerifyError) Error() string {
+func (e *BillionVerifyError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
 // AuthenticationError is returned when API key is invalid or missing.
 type AuthenticationError struct {
-	EmailVerifyError
+	BillionVerifyError
 }
 
 // NewAuthenticationError creates a new AuthenticationError.
@@ -25,7 +25,7 @@ func NewAuthenticationError(message string) *AuthenticationError {
 		message = "Invalid or missing API key"
 	}
 	return &AuthenticationError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "INVALID_API_KEY",
 			Message:    message,
 			StatusCode: 401,
@@ -35,7 +35,7 @@ func NewAuthenticationError(message string) *AuthenticationError {
 
 // RateLimitError is returned when rate limit is exceeded.
 type RateLimitError struct {
-	EmailVerifyError
+	BillionVerifyError
 	RetryAfter int
 }
 
@@ -45,7 +45,7 @@ func NewRateLimitError(message string, retryAfter int) *RateLimitError {
 		message = "Rate limit exceeded"
 	}
 	return &RateLimitError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "RATE_LIMIT_EXCEEDED",
 			Message:    message,
 			StatusCode: 429,
@@ -56,13 +56,13 @@ func NewRateLimitError(message string, retryAfter int) *RateLimitError {
 
 // ValidationError is returned when request validation fails.
 type ValidationError struct {
-	EmailVerifyError
+	BillionVerifyError
 }
 
 // NewValidationError creates a new ValidationError.
 func NewValidationError(message string, details string) *ValidationError {
 	return &ValidationError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "INVALID_REQUEST",
 			Message:    message,
 			StatusCode: 400,
@@ -73,7 +73,7 @@ func NewValidationError(message string, details string) *ValidationError {
 
 // InsufficientCreditsError is returned when there are not enough credits.
 type InsufficientCreditsError struct {
-	EmailVerifyError
+	BillionVerifyError
 }
 
 // NewInsufficientCreditsError creates a new InsufficientCreditsError.
@@ -82,7 +82,7 @@ func NewInsufficientCreditsError(message string) *InsufficientCreditsError {
 		message = "Insufficient credits"
 	}
 	return &InsufficientCreditsError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "INSUFFICIENT_CREDITS",
 			Message:    message,
 			StatusCode: 402,
@@ -92,7 +92,7 @@ func NewInsufficientCreditsError(message string) *InsufficientCreditsError {
 
 // NotFoundError is returned when a resource is not found.
 type NotFoundError struct {
-	EmailVerifyError
+	BillionVerifyError
 }
 
 // NewNotFoundError creates a new NotFoundError.
@@ -101,7 +101,7 @@ func NewNotFoundError(message string) *NotFoundError {
 		message = "Resource not found"
 	}
 	return &NotFoundError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "NOT_FOUND",
 			Message:    message,
 			StatusCode: 404,
@@ -111,7 +111,7 @@ func NewNotFoundError(message string) *NotFoundError {
 
 // TimeoutError is returned when a request times out.
 type TimeoutError struct {
-	EmailVerifyError
+	BillionVerifyError
 }
 
 // NewTimeoutError creates a new TimeoutError.
@@ -120,7 +120,7 @@ func NewTimeoutError(message string) *TimeoutError {
 		message = "Request timed out"
 	}
 	return &TimeoutError{
-		EmailVerifyError: EmailVerifyError{
+		BillionVerifyError: BillionVerifyError{
 			Code:       "TIMEOUT",
 			Message:    message,
 			StatusCode: 504,
