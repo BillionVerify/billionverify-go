@@ -1,7 +1,3 @@
-module github.com/BillionVerify/go-sdk
+module github.com/BillionVerify/billionverify-go
 
 go 1.21
-
-require (
-	golang.org/x/time v0.5.0
-)

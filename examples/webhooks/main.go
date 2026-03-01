@@ -14,7 +14,7 @@ import (
 	"os"
 	"time"
 
-	billionverify "github.com/BillionVerify/go-sdk"
+	billionverify "github.com/BillionVerify/billionverify-go"
 )
 
 // Store webhook secret globally (in production, use secure storage)

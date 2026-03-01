@@ -7,7 +7,7 @@ Official BillionVerify Go SDK for email verification.
 ## Installation
 
 ```bash
-go get github.com/BillionVerify/go-sdk
+go get github.com/BillionVerify/billionverify-go
 ```
 
 ## Quick Start
@@ -20,7 +20,7 @@ import (
     "fmt"
     "log"
 
-    billionverify "github.com/BillionVerify/go-sdk"
+    billionverify "github.com/BillionVerify/billionverify-go"
 )
 
 func main() {
@@ -262,7 +262,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 ```go
 import (
     "errors"
-    billionverify "github.com/BillionVerify/go-sdk"
+    billionverify "github.com/BillionVerify/billionverify-go"
 )
 
 result, err := client.Verify(context.Background(), "user@example.com", nil)
