@@ -16,9 +16,9 @@ import (
 
 func main() {
 	// Get API key from environment variable
-	apiKey := os.Getenv("EMAILVERIFY_API_KEY")
+	apiKey := os.Getenv("BILLIONVERIFY_API_KEY")
 	if apiKey == "" {
-		log.Fatal("EMAILVERIFY_API_KEY environment variable is required")
+		log.Fatal("BILLIONVERIFY_API_KEY environment variable is required")
 	}
 
 	// Create a new client with longer timeout for file operations
@@ -208,9 +208,9 @@ func main() {
 
 // printJobStatus prints the current job status
 func printJobStatus(status *billionverify.FileJobResponse) {
-	fmt.Printf("Job ID: %s\n", status.JobID)
+	fmt.Printf("Job ID: %s\n", status.TaskID)
 	fmt.Printf("Status: %s\n", status.Status)
-	fmt.Printf("Progress: %d%%\n", status.ProgressPercent)
+	fmt.Printf("Progress: %d%%\n", status.Progress)
 	fmt.Printf("Processed: %d / %d\n", status.ProcessedEmails, status.TotalEmails)
 
 	if status.Status == billionverify.JobStatusCompleted || status.Status == billionverify.JobStatusFailed {

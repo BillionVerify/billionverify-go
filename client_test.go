@@ -62,7 +62,7 @@ func TestHealth(t *testing.T) {
 				t.Errorf("expected GET method, got %s", r.Method)
 			}
 			// Health endpoint should not require API key
-			if r.Header.Get("EV-API-KEY") != "" {
+			if r.Header.Get("BV-API-KEY") != "" {
 				t.Error("health endpoint should not send API key")
 			}
 
@@ -96,8 +96,8 @@ func TestVerify(t *testing.T) {
 			if r.Method != http.MethodPost {
 				t.Errorf("expected POST method, got %s", r.Method)
 			}
-			if r.Header.Get("EV-API-KEY") != "test-key" {
-				t.Errorf("expected EV-API-KEY header")
+			if r.Header.Get("BV-API-KEY") != "test-key" {
+				t.Errorf("expected BV-API-KEY header")
 			}
 
 			// Verify request body uses check_smtp not smtp_check

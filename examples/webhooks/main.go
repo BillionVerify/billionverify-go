@@ -22,9 +22,9 @@ var webhookSecret string
 
 func main() {
 	// Get API key from environment variable
-	apiKey := os.Getenv("EMAILVERIFY_API_KEY")
+	apiKey := os.Getenv("BILLIONVERIFY_API_KEY")
 	if apiKey == "" {
-		log.Fatal("EMAILVERIFY_API_KEY environment variable is required")
+		log.Fatal("BILLIONVERIFY_API_KEY environment variable is required")
 	}
 
 	// Create a new client
@@ -160,15 +160,16 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	// Get the signature from headers
-	signature := r.Header.Get("X-BillionVerify-Signature")
-	if signature == "" {
-		log.Println("Missing X-BillionVerify-Signature header")
+	signature := r.Header.Get("X-Webhook-Signature")
+	timestamp := r.Header.Get("X-Webhook-Timestamp")
+	if signature == "" || timestamp == "" {
+		log.Println("Missing X-Webhook-Signature or X-Webhook-Timestamp header")
 		http.Error(w, "Missing signature", http.StatusUnauthorized)
 		return
 	}
 
 	// Verify the webhook signature
-	if !billionverify.VerifyWebhookSignature(string(body), signature, webhookSecret) {
+	if !billionverify.VerifyWebhookSignatureWithTimestamp(string(body), signature, timestamp, webhookSecret, 0) {
 		log.Println("Invalid webhook signature")
 		http.Error(w, "Invalid signature", http.StatusUnauthorized)
 		return

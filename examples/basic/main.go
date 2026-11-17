@@ -16,9 +16,9 @@ import (
 
 func main() {
 	// Get API key from environment variable
-	apiKey := os.Getenv("EMAILVERIFY_API_KEY")
+	apiKey := os.Getenv("BILLIONVERIFY_API_KEY")
 	if apiKey == "" {
-		log.Fatal("EMAILVERIFY_API_KEY environment variable is required")
+		log.Fatal("BILLIONVERIFY_API_KEY environment variable is required")
 	}
 
 	// Create a new client

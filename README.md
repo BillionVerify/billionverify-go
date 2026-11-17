@@ -133,7 +133,7 @@ status, err := client.GetFileJobStatus(context.Background(), job.TaskID, &billio
 if err != nil {
     log.Fatal(err)
 }
-fmt.Printf("Progress: %d%%\n", status.ProgressPercent)
+fmt.Printf("Progress: %d%%\n", status.Progress)
 
 // Wait for completion (polling)
 completed, err := client.WaitForFileJobCompletion(
@@ -168,6 +168,61 @@ if err != nil {
 // Save results to file
 os.WriteFile("results.csv", csvData, 0644)
 ```
+
+## Disposable Check (free)
+
+```go
+d, _ := client.CheckDisposable(ctx, "someone@mailinator.com")        // POST
+d, _ = client.CheckDisposableViaQuery(ctx, "someone@mailinator.com") // GET
+fmt.Println(d.IsDisposable)
+```
+
+## Verification Options
+
+```go
+// check_smtp is sent as CheckSMTP (true when you pass no options). Set ServerDefaultSMTP to
+// leave it out so the server default applies.
+res, _ := client.Verify(ctx, "user@example.com", &billionverify.VerifyOptions{
+    ServerDefaultSMTP:       true,
+    ForceRefresh:            true, // skip every cache; a credit is always used
+    IncludeDomainReputation: true,
+})
+
+batch, _ := client.VerifyBatch(ctx, emails, &billionverify.BatchVerifyOptions{CheckSMTP: true})
+fmt.Println(batch.DeliverabilityBuckets.NotDeliverable, batch.RetryableEmails)
+```
+
+## Paused Jobs
+
+```go
+status, _ := client.ResumeJob(ctx, job.TaskID)
+```
+
+`WaitForFileJobCompletion` returns when a job has ended (`completed`, `completed_with_warning`, `failed`, `cancelled`) or is `paused`.
+
+## Domain Search
+
+Give a domain, get the emails published on its site, each one verified. 5 credits per returned email; `maxEmails` (1-200) caps the bill.
+
+```go
+no := false
+search, _ := client.CreateDomainSearch(ctx, "example.com", 20, &billionverify.DomainSearchOptions{IncludeRoleBased: &no, MaxPages: 100})
+done, _ := client.WaitForDomainSearch(ctx, search.SearchID, 0, 0)
+fmt.Println(done.Status, done.CreditsCharged, done.Result["emails"])
+
+// A CSV of domains
+batch, _ := client.CreateDomainSearchBatch(ctx, "domains.csv", &billionverify.DomainSearchBatchOptions{
+    MaxEmails: 10,
+    ColumnMap: map[string]string{"domain": "Company Website"},
+})
+st, _ := client.GetDomainSearchBatch(ctx, batch.BatchID)
+page, _ := client.ListDomainSearchBatches(ctx, &billionverify.ListDomainSearchBatchesOptions{Limit: 20, Status: "completed"})
+csv, _ := client.DownloadDomainSearchBatchResults(ctx, batch.BatchID) // 409 until the batch has finished
+```
+
+## Result Downloads
+
+`GetFileJobResults` and `DownloadDomainSearchBatchResults` follow the redirect to the pre-signed storage URL themselves and never send your API key to another host.
 
 ## Health Check
 
@@ -235,9 +290,12 @@ if err != nil {
 // Verify webhook signature in your handler
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
     body, _ := io.ReadAll(r.Body)
-    signature := r.Header.Get("X-BillionVerify-Signature")
+    signature := r.Header.Get("X-Webhook-Signature")
+    timestamp := r.Header.Get("X-Webhook-Timestamp")
 
-    if !billionverify.VerifyWebhookSignature(string(body), signature, "your-webhook-secret") {
+    // The signature is an HMAC-SHA256 over "<timestamp>.<body>". Deliveries older or
+    // newer than 5 minutes are rejected (pass a tolerance to change that; negative turns it off).
+    if !billionverify.VerifyWebhookSignatureWithTimestamp(string(body), signature, timestamp, "your-webhook-secret", 0) {
         http.Error(w, "Invalid signature", http.StatusUnauthorized)
         return
     }
@@ -319,10 +377,18 @@ billionverify.StatusRole       // "role"
 ## Job Status Constants
 
 ```go
-billionverify.JobStatusPending    // "pending"
-billionverify.JobStatusProcessing // "processing"
-billionverify.JobStatusCompleted  // "completed"
-billionverify.JobStatusFailed     // "failed"
+billionverify.JobStatusPreparing            // "preparing"
+billionverify.JobStatusPending              // "pending"
+billionverify.JobStatusRunning              // "running"
+billionverify.JobStatusProcessing           // "processing"
+billionverify.JobStatusMerging              // "merging"
+billionverify.JobStatusPaused               // "paused"
+billionverify.JobStatusCompleted            // "completed"
+billionverify.JobStatusCompletedWithWarning // "completed_with_warning"
+billionverify.JobStatusFailed               // "failed"
+billionverify.JobStatusCancelled            // "cancelled"
+
+status.Status.IsSettled() // ended (completed, completed_with_warning, failed, cancelled) or paused
 ```
 
 ## Webhook Event Constants
